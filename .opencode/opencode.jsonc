@@ -1,0 +1,23 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "n8n-mcp": {
+      "type": "local",
+      "command": [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "--init",
+        "-e", "MCP_MODE=stdio",
+        "-e", "LOG_LEVEL=error",
+        "-e", "DISABLE_CONSOLE_OUTPUT=true",
+        "-e", "N8N_API_URL=http://host.docker.internal:5678",
+        "-e", "WEBHOOK_SECURITY_MODE=moderate",
+        "-e", "N8N_API_KEY={env:N8N_API_KEY}",
+        "ghcr.io/czlonkowski/n8n-mcp:latest"
+      ],
+      "enabled": true
+    }
+  }
+}
