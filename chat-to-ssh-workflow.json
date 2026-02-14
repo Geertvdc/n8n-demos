@@ -1,0 +1,49 @@
+{
+  "name": "Chat to SSH Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-chat-trigger",
+      "name": "When Chat Message Received",
+      "type": "@n8n/n8n-nodes-langchain.manualChatTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "resource": "command",
+        "operation": "execute",
+        "command": "={{ $json.chatInput }}",
+        "cwd": "/Users/geertvdc"
+      },
+      "id": "ssh-execute",
+      "name": "Execute SSH Command",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [470, 300],
+      "credentials": {
+        "sshPassword": {
+          "id": "1",
+          "name": "Local Machine SSH"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Chat Message Received": {
+      "main": [
+        [
+          {
+            "node": "Execute SSH Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
