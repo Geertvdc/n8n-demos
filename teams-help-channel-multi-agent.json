@@ -1,0 +1,533 @@
+{
+  "name": "Teams HELP Channel - Multi-Agent Research Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "event": "newChannelMessage",
+        "watchAllTeams": false,
+        "teamId": {
+          "mode": "id",
+          "value": "YOUR_TEAM_ID"
+        },
+        "channelId": {
+          "mode": "id",
+          "value": "YOUR_HELP_CHANNEL_ID"
+        }
+      },
+      "id": "teams-trigger",
+      "name": "Teams HELP Channel Trigger",
+      "type": "n8n-nodes-base.microsoftTeamsTrigger",
+      "typeVersion": 1,
+      "position": [240, 400],
+      "webhookId": "teams-help-webhook",
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "YOUR_TEAMS_CREDENTIAL_ID",
+          "name": "Microsoft Teams"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the question from the Teams message\nconst message = $input.first().json;\n\n// Get the message body (Teams API returns body.content)\nconst messageText = message.body?.content || message.content || '';\nconst sender = message.from?.user?.displayName || 'Unknown';\nconst messageId = message.id || '';\nconst channelId = message.channelIdentity?.channelId || message.channelId || '';\nconst teamId = message.channelIdentity?.teamId || message.teamId || '';\nconst threadId = message.id || '';\n\n// Strip HTML tags from Teams messages (Teams wraps content in HTML)\nconst plainText = messageText.replace(/<[^>]*>/g, '').trim();\n\nif (!plainText || plainText.length === 0) {\n  throw new Error('No message content found');\n}\n\nreturn {\n  question: plainText,\n  sender: sender,\n  messageId: messageId,\n  channelId: channelId,\n  teamId: teamId,\n  threadId: threadId,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "extract-question",
+      "name": "Extract Question",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.question }}",
+        "options": {
+          "systemMessage": "You are a research agent specializing in web search. Your goal is to find accurate, up-to-date answers to questions using Google Search.\n\nWhen given a question:\n1. Search for the most relevant and authoritative information\n2. Look for multiple sources to verify the answer\n3. Focus on practical, actionable information\n4. Return a structured research summary with:\n   - Key findings\n   - Sources found\n   - Confidence level\n   - Any important caveats\n\nAlways cite where you found information. Be thorough but concise."
+        }
+      },
+      "id": "agent-web-search",
+      "name": "Research Agent: Web Search",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [720, 200]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Extract Question').first().json.question }}",
+        "options": {
+          "systemMessage": "You are a research agent specializing in encyclopedic and factual knowledge using Wikipedia.\n\nWhen given a question:\n1. Search Wikipedia for relevant background information and established facts\n2. Look up related concepts that might help answer the question\n3. Identify any domain-specific terminology or context\n4. Return a structured research summary with:\n   - Factual background information\n   - Related concepts and definitions\n   - Historical context if relevant\n   - Wikipedia sources\n\nFocus on factual accuracy and comprehensive coverage of the topic."
+        }
+      },
+      "id": "agent-wikipedia",
+      "name": "Research Agent: Wikipedia",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [720, 400]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Extract Question').first().json.question }}",
+        "options": {
+          "systemMessage": "You are a research agent specializing in technical documentation and online resources.\n\nWhen given a question:\n1. Search for official documentation, guides, and technical resources\n2. Look for Stack Overflow-style Q&A content and community knowledge\n3. Find tutorials, how-to guides, and best practices\n4. Return a structured research summary with:\n   - Technical details and implementation guidance\n   - Code examples or step-by-step instructions if applicable\n   - Common pitfalls to avoid\n   - Recommended best practices\n   - Links to authoritative technical resources\n\nFocus on practical, implementable solutions and technical accuracy."
+        }
+      },
+      "id": "agent-docs-search",
+      "name": "Research Agent: Technical Docs",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [720, 600]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "azure-model-web",
+      "name": "Azure OpenAI (Web Search Agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [620, 80],
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "YOUR_AZURE_OPENAI_CREDENTIAL_ID",
+          "name": "Azure OpenAI"
+        }
+      },
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "azure-model-wiki",
+      "name": "Azure OpenAI (Wikipedia Agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [620, 280],
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "YOUR_AZURE_OPENAI_CREDENTIAL_ID",
+          "name": "Azure OpenAI"
+        }
+      },
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "azure-model-docs",
+      "name": "Azure OpenAI (Docs Agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [620, 480],
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "YOUR_AZURE_OPENAI_CREDENTIAL_ID",
+          "name": "Azure OpenAI"
+        }
+      },
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "serp-api-tool",
+      "name": "SerpAPI Google Search Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [820, 80],
+      "credentials": {
+        "serpApi": {
+          "id": "YOUR_SERPAPI_CREDENTIAL_ID",
+          "name": "SerpAPI"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "wikipedia-tool",
+      "name": "Wikipedia Search Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWikipedia",
+      "typeVersion": 1,
+      "position": [820, 280],
+      "credentials": {
+        "wikipediaApi": {
+          "id": "YOUR_WIKIPEDIA_CREDENTIAL_ID",
+          "name": "Wikipedia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.bing.microsoft.com/v7.0/search",
+        "method": "GET",
+        "toolDescription": "Search for technical documentation, guides, tutorials and technical Q&A content. Use this to find authoritative technical information, official docs, Stack Overflow answers and best practices. Pass the search query as the 'q' parameter.",
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "q",
+              "valueProvider": "fieldValue",
+              "value": "{query}"
+            },
+            {
+              "name": "count",
+              "valueProvider": "fieldValue",
+              "value": "10"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "Ocp-Apim-Subscription-Key",
+              "valueProvider": "fieldValue",
+              "value": "YOUR_BING_SEARCH_API_KEY"
+            }
+          ]
+        },
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "query",
+              "type": "string",
+              "description": "The search query to find technical documentation and resources"
+            }
+          ]
+        },
+        "optimizeResponse": true
+      },
+      "id": "bing-search-tool",
+      "name": "Bing Search Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [820, 480]
+    },
+    {
+      "parameters": {
+        "mode": "combineBySql",
+        "combineBySql": {
+          "query": "SELECT * FROM input1 CROSS JOIN input2 CROSS JOIN input3"
+        },
+        "options": {}
+      },
+      "id": "merge-research",
+      "name": "Merge Research Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect research results from all 3 agents\nconst items = $input.all();\n\n// Each item in the merged result corresponds to outputs from each agent\n// Extract the output text from each agent\nconst webSearchResult = $('Research Agent: Web Search').first().json.output || 'No web search results';\nconst wikipediaResult = $('Research Agent: Wikipedia').first().json.output || 'No Wikipedia results';\nconst technicalDocsResult = $('Research Agent: Technical Docs').first().json.output || 'No technical docs results';\n\nconst originalQuestion = $('Extract Question').first().json.question;\nconst sender = $('Extract Question').first().json.sender;\nconst teamId = $('Extract Question').first().json.teamId;\nconst channelId = $('Extract Question').first().json.channelId;\nconst threadId = $('Extract Question').first().json.threadId;\n\nreturn {\n  originalQuestion: originalQuestion,\n  sender: sender,\n  teamId: teamId,\n  channelId: channelId,\n  threadId: threadId,\n  researchResults: {\n    webSearch: webSearchResult,\n    wikipedia: wikipediaResult,\n    technicalDocs: technicalDocsResult\n  },\n  synthesisPrompt: `You are a senior expert synthesizing research from multiple AI agents to provide the best possible answer to a question asked in a Microsoft Teams help channel.\n\nORIGINAL QUESTION from ${sender}:\n${originalQuestion}\n\n--- RESEARCH AGENT 1: WEB SEARCH RESULTS ---\n${webSearchResult}\n\n--- RESEARCH AGENT 2: WIKIPEDIA RESULTS ---\n${wikipediaResult}\n\n--- RESEARCH AGENT 3: TECHNICAL DOCUMENTATION RESULTS ---\n${technicalDocsResult}\n\n---\n\nBased on ALL the research above, provide ONE comprehensive, accurate, and helpful answer. Your response should:\n1. Directly answer the question\n2. Include the most relevant information from all research sources\n3. Be well-structured with clear sections if needed\n4. Include practical steps or examples where applicable\n5. Note any conflicting information between sources and resolve it\n6. Keep it concise but complete - aim for a response that fully resolves the question\n7. Format it appropriately for a Microsoft Teams message (use plain text, avoid heavy markdown)\n\nRespond as if you are a knowledgeable colleague answering directly to ${sender}.`\n};"
+      },
+      "id": "prepare-synthesis",
+      "name": "Prepare Synthesis Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1220, 400]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.synthesisPrompt }}",
+        "options": {
+          "systemMessage": "You are the Lead Answer Synthesizer for a technical help system. Your role is to review research findings from multiple specialized AI agents and produce one definitive, high-quality answer.\n\nYour priorities:\n1. ACCURACY: Only include information that is well-supported by the research\n2. COMPLETENESS: Address all aspects of the question\n3. CLARITY: Write in plain, accessible language appropriate for the asker's apparent level\n4. ACTIONABILITY: Provide concrete next steps or solutions\n5. BREVITY: Be comprehensive but avoid unnecessary padding\n\nAlways synthesize, never just concatenate. If sources conflict, use your judgment to provide the most accurate answer and note the discrepancy if important."
+        }
+      },
+      "id": "agent-synthesizer",
+      "name": "Synthesizer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1440, 400]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "azure-model-synthesizer",
+      "name": "Azure OpenAI (Synthesizer)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [1340, 280],
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "YOUR_AZURE_OPENAI_CREDENTIAL_ID",
+          "name": "Azure OpenAI"
+        }
+      },
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the final answer for posting to Teams\nconst synthesizedAnswer = $('Synthesizer Agent').first().json.output || 'I was unable to generate an answer at this time.';\nconst originalQuestion = $('Extract Question').first().json.question;\nconst sender = $('Extract Question').first().json.sender;\nconst teamId = $('Extract Question').first().json.teamId;\nconst channelId = $('Extract Question').first().json.channelId;\nconst threadId = $('Extract Question').first().json.threadId;\n\n// Format the Teams message\nconst teamsMessage = `Hi @${sender}! Here's what our research agents found for your question:\n\n**Question:** ${originalQuestion}\n\n---\n\n${synthesizedAnswer}\n\n---\n*This answer was researched and synthesized by AI agents using web search, Wikipedia, and technical documentation sources.*`;\n\nreturn {\n  teamId: teamId,\n  channelId: channelId,\n  threadId: threadId,\n  message: teamsMessage,\n  originalQuestion: originalQuestion,\n  sender: sender\n};"
+      },
+      "id": "format-response",
+      "name": "Format Teams Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1660, 400]
+    },
+    {
+      "parameters": {
+        "resource": "channelMessage",
+        "operation": "create",
+        "teamId": {
+          "mode": "id",
+          "value": "={{ $json.teamId }}"
+        },
+        "channelId": {
+          "mode": "id",
+          "value": "={{ $json.channelId }}"
+        },
+        "messageType": "replyToMessage",
+        "replyToId": "={{ $json.threadId }}",
+        "content": "={{ $json.message }}",
+        "contentType": "html"
+      },
+      "id": "post-to-teams",
+      "name": "Post Answer to Teams",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [1880, 400],
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "YOUR_TEAMS_CREDENTIAL_ID",
+          "name": "Microsoft Teams"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Teams HELP Channel Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Question": {
+      "main": [
+        [
+          {
+            "node": "Research Agent: Web Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Research Agent: Wikipedia",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Research Agent: Technical Docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Agent: Web Search": {
+      "main": [
+        [
+          {
+            "node": "Merge Research Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Agent: Wikipedia": {
+      "main": [
+        [
+          {
+            "node": "Merge Research Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Research Agent: Technical Docs": {
+      "main": [
+        [
+          {
+            "node": "Merge Research Results",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI (Web Search Agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent: Web Search",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI (Wikipedia Agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent: Wikipedia",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI (Docs Agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent: Technical Docs",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI Google Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent: Web Search",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent: Wikipedia",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bing Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent: Technical Docs",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Research Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare Synthesis Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Synthesis Input": {
+      "main": [
+        [
+          {
+            "node": "Synthesizer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI (Synthesizer)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Synthesizer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthesizer Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Teams Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Teams Response": {
+      "main": [
+        [
+          {
+            "node": "Post Answer to Teams",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "teams",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-20T00:00:00.000Z"
+    },
+    {
+      "name": "multi-agent",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-20T00:00:00.000Z"
+    },
+    {
+      "name": "ai",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-20T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2026-02-20T00:00:00.000Z",
+  "versionId": "1"
+}

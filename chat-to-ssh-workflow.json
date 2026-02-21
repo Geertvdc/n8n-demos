@@ -2,35 +2,43 @@
   "name": "Chat to SSH Workflow",
   "nodes": [
     {
-      "parameters": {},
-      "id": "manual-chat-trigger",
-      "name": "When Chat Message Received",
-      "type": "@n8n/n8n-nodes-langchain.manualChatTrigger",
-      "typeVersion": 1.1,
-      "position": [250, 300]
-    },
-    {
       "parameters": {
-        "resource": "command",
-        "operation": "execute",
         "command": "={{ $json.chatInput }}",
         "cwd": "/Users/geertvdc"
       },
-      "id": "ssh-execute",
+      "id": "0bba1a71-0a9e-4ccc-9205-06c94def7aef",
       "name": "Execute SSH Command",
       "type": "n8n-nodes-base.ssh",
       "typeVersion": 1,
-      "position": [470, 300],
+      "position": [
+        352,
+        0
+      ],
       "credentials": {
         "sshPassword": {
-          "id": "1",
-          "name": "Local Machine SSH"
+          "id": "3tbOITboVFceNqzZ",
+          "name": "SSH Password account"
         }
       }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "84f5143a-1022-4676-a7e4-4d1ff83be27b",
+      "name": "When chat message received",
+      "webhookId": "c54079b6-7995-4eb4-81c9-f590756596d3"
     }
   ],
+  "pinData": {},
   "connections": {
-    "When Chat Message Received": {
+    "When chat message received": {
       "main": [
         [
           {
@@ -42,8 +50,16 @@
       ]
     }
   },
-  "pinData": {},
+  "active": false,
   "settings": {
-    "executionOrder": "v1"
-  }
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "5f1ba7ff-1dfb-4a52-9ebf-a01309872720",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cadbd189f0ecaeeb0dce9e0f141c26cf3107a2314f20ec3887295cd3ed7be88c"
+  },
+  "id": "XMIKTyMebcF7l94T7Y8Qy",
+  "tags": []
 }
