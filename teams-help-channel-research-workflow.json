@@ -1,0 +1,476 @@
+{
+  "name": "Teams HELP Channel - Multi-Agent Research Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "event": "newChannelMessage",
+        "watchAllTeams": false,
+        "teamId": {
+          "mode": "id",
+          "value": "YOUR_TEAM_ID"
+        },
+        "channelId": {
+          "mode": "id",
+          "value": "YOUR_HELP_CHANNEL_ID"
+        }
+      },
+      "id": "teams-trigger",
+      "name": "Teams HELP Channel Trigger",
+      "type": "n8n-nodes-base.microsoftTeamsTrigger",
+      "typeVersion": 1,
+      "position": [0, 300],
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "",
+          "name": "Microsoft Teams OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the message content and metadata\nconst message = $input.first().json;\n\nconst messageBody = message.body?.content || message.body?.text || '';\nconst messageId = message.id || '';\nconst channelId = message.channelIdentity?.channelId || '';\nconst teamId = message.channelIdentity?.teamId || '';\nconst sender = message.from?.user?.displayName || 'Unknown';\n\n// Filter out bot replies to prevent loops (skip messages from apps/bots)\nconst fromType = message.from?.application ? 'application' : (message.from?.device ? 'device' : 'user');\nif (fromType !== 'user') {\n  return [];\n}\n\n// Skip empty messages\nif (!messageBody || messageBody.trim().length === 0) {\n  return [];\n}\n\n// Strip HTML tags from message body if present\nconst cleanMessage = messageBody.replace(/<[^>]*>/g, '').trim();\n\nreturn [{\n  json: {\n    question: cleanMessage,\n    messageId: messageId,\n    channelId: channelId,\n    teamId: teamId,\n    sender: sender,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "extract-message",
+      "name": "Extract & Validate Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.question }}",
+        "options": {
+          "systemMessage": "You are a specialized research agent focused on finding answers using web search. Your job is to:\n1. Search for information relevant to the user's question using Google Search\n2. Analyze the search results thoroughly\n3. Formulate a comprehensive, accurate answer based on what you find\n\nIMPORTANT:\n- Always use your search tool to look up current information\n- Cite your sources when possible\n- If the question is ambiguous, address the most likely interpretation\n- Be thorough but concise\n- Return your findings as a structured answer with key points"
+        }
+      },
+      "id": "web-search-agent",
+      "name": "Web Search Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [520, 100]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "azure-model-web-search",
+      "name": "Azure OpenAI (Web Search Agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [400, 0],
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "",
+          "name": "Azure OpenAI API"
+        }
+      },
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "serp-tool",
+      "name": "SerpAPI Google Search",
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [640, 0],
+      "credentials": {
+        "serpApi": {
+          "id": "",
+          "name": "SerpAPI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Extract & Validate Message').first().json.question }}",
+        "options": {
+          "systemMessage": "You are a specialized research agent focused on finding encyclopedic and factual information using Wikipedia. Your job is to:\n1. Search Wikipedia for information relevant to the user's question\n2. Look up related articles and concepts to build a comprehensive understanding\n3. Formulate an accurate, well-structured answer based on the encyclopedic knowledge you find\n\nIMPORTANT:\n- Always use the Wikipedia tool to look up information\n- Focus on factual, established knowledge\n- If the question touches on multiple topics, look up each one\n- Cross-reference multiple Wikipedia articles when relevant\n- Acknowledge if the topic is not well covered on Wikipedia\n- Return your findings with clear explanations of key concepts"
+        }
+      },
+      "id": "wikipedia-agent",
+      "name": "Wikipedia Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "azure-model-wikipedia",
+      "name": "Azure OpenAI (Wikipedia Agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [400, 200],
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "",
+          "name": "Azure OpenAI API"
+        }
+      },
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "language": "en"
+      },
+      "id": "wikipedia-tool",
+      "name": "Wikipedia Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWikipedia",
+      "typeVersion": 1,
+      "position": [640, 200],
+      "credentials": {
+        "wikipediaApi": {
+          "id": "",
+          "name": "Wikipedia"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Extract & Validate Message').first().json.question }}",
+        "options": {
+          "systemMessage": "You are a specialized research agent that searches for technical documentation, official sources, and deep-dive content. Your job is to:\n1. Use your HTTP request tool to fetch content from relevant technical documentation sites, official sources, or well-known reference sites\n2. Look for authoritative answers from official documentation, Stack Overflow, GitHub, or expert blogs\n3. Formulate an in-depth, technically accurate answer\n\nIMPORTANT:\n- Use the HTTP Request tool to fetch pages from authoritative sources\n- Try URLs like: https://api.duckduckgo.com/?q={query}&format=json&no_html=1 for quick lookups\n- Focus on technical accuracy and depth\n- Include code examples or technical details if relevant\n- Return structured findings with source references"
+        }
+      },
+      "id": "documentation-agent",
+      "name": "Deep Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [520, 500]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "azure-model-docs",
+      "name": "Azure OpenAI (Deep Research Agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [400, 400],
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "",
+          "name": "Azure OpenAI API"
+        }
+      },
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Use this tool to fetch content from any URL for research. Provide the full URL as the input. Use it to fetch official documentation, DuckDuckGo Instant Answers API (https://api.duckduckgo.com/?q=QUERY&format=json&no_html=1), or any public web page.",
+        "url": "https://api.duckduckgo.com/",
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "format",
+              "value": "json",
+              "valueProvider": "fieldValue"
+            },
+            {
+              "name": "no_html",
+              "value": "1",
+              "valueProvider": "fieldValue"
+            }
+          ]
+        },
+        "optimizeResponse": true,
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "q",
+              "type": "string",
+              "description": "The search query to look up"
+            }
+          ]
+        }
+      },
+      "id": "http-request-tool",
+      "name": "DuckDuckGo Instant Answer Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all research results from the 3 parallel agents\nconst question = $('Extract & Validate Message').first().json.question;\nconst sender = $('Extract & Validate Message').first().json.sender;\nconst channelId = $('Extract & Validate Message').first().json.channelId;\nconst teamId = $('Extract & Validate Message').first().json.teamId;\nconst messageId = $('Extract & Validate Message').first().json.messageId;\n\n// Collect outputs from each research agent\nconst webSearchResult = $('Web Search Agent').first()?.json?.output || 'No result from web search agent.';\nconst wikipediaResult = $('Wikipedia Research Agent').first()?.json?.output || 'No result from Wikipedia agent.';\nconst deepResearchResult = $('Deep Research Agent').first()?.json?.output || 'No result from deep research agent.';\n\nreturn [{\n  json: {\n    question: question,\n    sender: sender,\n    channelId: channelId,\n    teamId: teamId,\n    messageId: messageId,\n    researchResults: {\n      webSearch: webSearchResult,\n      wikipedia: wikipediaResult,\n      deepResearch: deepResearchResult\n    },\n    aggregatedPrompt: `You are an expert answer synthesizer. Three research agents have independently investigated the following question asked by ${sender} in the HELP channel:\n\n**QUESTION:**\n${question}\n\n---\n\n**RESEARCH AGENT 1 - Web Search Results:**\n${webSearchResult}\n\n---\n\n**RESEARCH AGENT 2 - Wikipedia / Encyclopedic Research:**\n${wikipediaResult}\n\n---\n\n**RESEARCH AGENT 3 - Deep Research / Technical Documentation:**\n${deepResearchResult}\n\n---\n\nPlease synthesize all of this research into ONE comprehensive, clear, and accurate final answer. Your answer should:\n1. Directly address the question\n2. Combine the best insights from all three research sources\n3. Resolve any contradictions between sources (prefer the most authoritative/recent source)\n4. Be well-structured with clear sections if the answer is complex\n5. Include relevant links or references if available from the research\n6. Be written in a helpful, professional tone suitable for a Teams channel response\n7. Start with a direct answer, then provide supporting details\n\nFormat the answer in Markdown for readability in Teams.`\n  }\n}];"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Research Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.aggregatedPrompt }}",
+        "options": {
+          "systemMessage": "You are an expert answer synthesizer for a technical help channel. Your role is to review research from multiple agents and produce ONE definitive, high-quality answer. Always be helpful, accurate, and concise. Format your response in Markdown for readability in Microsoft Teams."
+        }
+      },
+      "id": "synthesizer-agent",
+      "name": "Answer Synthesizer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1040, 300]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "azure-model-synthesizer",
+      "name": "Azure OpenAI (Synthesizer)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [920, 200],
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "",
+          "name": "Azure OpenAI API"
+        }
+      },
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the final Teams message\nconst synthesizedAnswer = $('Answer Synthesizer Agent').first().json.output || 'I was unable to find a satisfactory answer to your question.';\nconst question = $('Aggregate Research Results').first().json.question;\nconst sender = $('Aggregate Research Results').first().json.sender;\nconst teamId = $('Aggregate Research Results').first().json.teamId;\nconst channelId = $('Aggregate Research Results').first().json.channelId;\n\nconst finalMessage = `**Research Answer for @${sender}**\\n\\n> **Question:** ${question}\\n\\n---\\n\\n${synthesizedAnswer}\\n\\n---\\n*This answer was researched by 3 AI agents (Web Search, Wikipedia, Deep Research) and synthesized into this response.*`;\n\nreturn [{\n  json: {\n    teamId: teamId,\n    channelId: channelId,\n    message: finalMessage\n  }\n}];"
+      },
+      "id": "format-response",
+      "name": "Format Teams Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 300]
+    },
+    {
+      "parameters": {
+        "resource": "channelMessage",
+        "operation": "create",
+        "teamId": {
+          "mode": "id",
+          "value": "={{ $json.teamId }}"
+        },
+        "channelId": {
+          "mode": "id",
+          "value": "={{ $json.channelId }}"
+        },
+        "messageType": "text",
+        "message": "={{ $json.message }}"
+      },
+      "id": "post-to-teams",
+      "name": "Post Answer to Teams HELP Channel",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [1520, 300],
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "",
+          "name": "Microsoft Teams OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Teams HELP Channel Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract & Validate Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Validate Message": {
+      "main": [
+        [
+          {
+            "node": "Web Search Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wikipedia Research Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Deep Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI (Web Search Agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Web Search Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI Google Search": {
+      "ai_tool": [
+        [
+          {
+            "node": "Web Search Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI (Wikipedia Agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Wikipedia Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Wikipedia Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI (Deep Research Agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Deep Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DuckDuckGo Instant Answer Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Deep Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search Agent": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Research Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Research Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deep Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Research Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Research Results": {
+      "main": [
+        [
+          {
+            "node": "Answer Synthesizer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure OpenAI (Synthesizer)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Answer Synthesizer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer Synthesizer Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Teams Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Teams Response": {
+      "main": [
+        [
+          {
+            "node": "Post Answer to Teams HELP Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
